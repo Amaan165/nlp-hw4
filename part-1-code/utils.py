@@ -44,53 +44,53 @@ def custom_transform(example):
 
     # You should update example["text"] using your transformation
 
-    text = example["text"]
-    words = word_tokenize(text)
-    transformed_words = []
+    # text = example["text"]
+    # words = word_tokenize(text)
+    # transformed_words = []
     
-    # QWERTY keyboard neighbors for typo simulation
-    keyboard_neighbors = {
-        'a': 'qwsz', 'b': 'vghn', 'c': 'xdfv', 'd': 'serfcx',
-        'e': 'wrdsf', 'f': 'drtgvc', 'g': 'ftyhbv', 'h': 'gyujnb',
-        'i': 'ujklo', 'j': 'huikmn', 'k': 'jiolm', 'l': 'kop',
-        'm': 'njk', 'n': 'bhjm', 'o': 'iklp', 'p': 'ol',
-        'q': 'wa', 'r': 'etdf', 's': 'awedxz', 't': 'ryfg',
-        'u': 'yhji', 'v': 'cfgb', 'w': 'qase', 'x': 'zsdc',
-        'y': 'tghu', 'z': 'asx'
-    }
+    # # QWERTY keyboard neighbors for typo simulation
+    # keyboard_neighbors = {
+    #     'a': 'qwsz', 'b': 'vghn', 'c': 'xdfv', 'd': 'serfcx',
+    #     'e': 'wrdsf', 'f': 'drtgvc', 'g': 'ftyhbv', 'h': 'gyujnb',
+    #     'i': 'ujklo', 'j': 'huikmn', 'k': 'jiolm', 'l': 'kop',
+    #     'm': 'njk', 'n': 'bhjm', 'o': 'iklp', 'p': 'ol',
+    #     'q': 'wa', 'r': 'etdf', 's': 'awedxz', 't': 'ryfg',
+    #     'u': 'yhji', 'v': 'cfgb', 'w': 'qase', 'x': 'zsdc',
+    #     'y': 'tghu', 'z': 'asx'
+    # }
     
-    for word in words:
-        # Apply transformations with probability
-        if random.random() < 0.15:  # 15% chance to transform word
-            choice = random.choice(['synonym', 'typo'])
+    # for word in words:
+    #     # Apply transformations with probability
+    #     if random.random() < 0.15:  # 15% chance to transform word
+    #         choice = random.choice(['synonym', 'typo'])
             
-            if choice == 'synonym':
-                # Synonym replacement using WordNet
-                synsets = wordnet.synsets(word)
-                if synsets:
-                    synonyms = []
-                    for syn in synsets[:3]:  # Check first 3 synsets
-                        for lemma in syn.lemmas():
-                            if lemma.name() != word and '_' not in lemma.name():
-                                synonyms.append(lemma.name())
-                    if synonyms:
-                        word = random.choice(synonyms)
+    #         if choice == 'synonym':
+    #             # Synonym replacement using WordNet
+    #             synsets = wordnet.synsets(word)
+    #             if synsets:
+    #                 synonyms = []
+    #                 for syn in synsets[:3]:  # Check first 3 synsets
+    #                     for lemma in syn.lemmas():
+    #                         if lemma.name() != word and '_' not in lemma.name():
+    #                             synonyms.append(lemma.name())
+    #                 if synonyms:
+    #                     word = random.choice(synonyms)
             
-            elif choice == 'typo' and len(word) > 2:
-                # Random typo by replacing a character
-                word_list = list(word.lower())
-                idx = random.randint(0, len(word_list) - 1)
-                if word_list[idx] in keyboard_neighbors:
-                    word_list[idx] = random.choice(keyboard_neighbors[word_list[idx]])
-                word = ''.join(word_list)
+    #         elif choice == 'typo' and len(word) > 2:
+    #             # Random typo by replacing a character
+    #             word_list = list(word.lower())
+    #             idx = random.randint(0, len(word_list) - 1)
+    #             if word_list[idx] in keyboard_neighbors:
+    #                 word_list[idx] = random.choice(keyboard_neighbors[word_list[idx]])
+    #             word = ''.join(word_list)
         
-        transformed_words.append(word)
+    #     transformed_words.append(word)
     
-    # Detokenize
-    detokenizer = TreebankWordDetokenizer()
-    example["text"] = detokenizer.detokenize(transformed_words)
+    # # Detokenize
+    # detokenizer = TreebankWordDetokenizer()
+    # example["text"] = detokenizer.detokenize(transformed_words)
     
-    return example
+    # return example
 
     ##### YOUR CODE ENDS HERE ######
 
