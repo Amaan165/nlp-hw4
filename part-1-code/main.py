@@ -13,6 +13,8 @@ import argparse
 from utils import *
 import os
 
+from datasets import VerificationMode
+
 # Set seed
 random.seed(0)
 torch.manual_seed(0)
@@ -217,7 +219,14 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
 
     # Tokenize the dataset
-    dataset = load_dataset("imdb")
+    # dataset = load_dataset("imdb")
+    # tokenized_dataset = dataset.map(tokenize_function, batched=True)
+
+    # Tokenize the dataset
+    dataset = load_dataset(
+        "imdb",
+        verification_mode=VerificationMode.NO_CHECKS,
+    )
     tokenized_dataset = dataset.map(tokenize_function, batched=True)
 
     # Prepare dataset for use by model
