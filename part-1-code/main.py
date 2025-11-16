@@ -117,40 +117,40 @@ def create_augmented_dataloader(args, dataset):
     # You may find it helpful to see how the dataloader was created at other place in this code.
 
     # # Get original training dataset
-    # original_train = dataset["train"]
+    original_train = dataset["train"]
     
-    # # Create 5k augmented examples
-    # # Sample 5000 random examples from training set
-    # sampled_for_augmentation = original_train.shuffle(seed=42).select(range(5000))
+    # Create 5k augmented examples
+    # Sample 5000 random examples from training set
+    sampled_for_augmentation = original_train.shuffle(seed=42).select(range(5000))
     
-    # # Apply transformations
-    # augmented_dataset = sampled_for_augmentation.map(
-    #     custom_transform, 
-    #     load_from_cache_file=False
-    # )
+    # Apply transformations
+    augmented_dataset = sampled_for_augmentation.map(
+        custom_transform, 
+        load_from_cache_file=False
+    )
     
-    # # Combine original + augmented
-    # from datasets import concatenate_datasets
-    # combined_dataset = concatenate_datasets([original_train, augmented_dataset])
+    # Combine original + augmented
+    from datasets import concatenate_datasets
+    combined_dataset = concatenate_datasets([original_train, augmented_dataset])
     
-    # # Tokenize
-    # tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-    # def tokenize_function(examples):
-    #     return tokenizer(examples["text"], padding="max_length", truncation=True)
+    # Tokenize
+    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], padding="max_length", truncation=True)
     
-    # tokenized_combined = combined_dataset.map(tokenize_function, batched=True)
+    tokenized_combined = combined_dataset.map(tokenize_function, batched=True)
     
-    # # Prepare for model
-    # tokenized_combined = tokenized_combined.remove_columns(["text"])
-    # tokenized_combined = tokenized_combined.rename_column("label", "labels")
-    # tokenized_combined.set_format("torch")
+    # Prepare for model
+    tokenized_combined = tokenized_combined.remove_columns(["text"])
+    tokenized_combined = tokenized_combined.rename_column("label", "labels")
+    tokenized_combined.set_format("torch")
     
-    # # Create dataloader
-    # train_dataloader = DataLoader(
-    #     tokenized_combined, 
-    #     shuffle=True, 
-    #     batch_size=args.batch_size
-    # )
+    # Create dataloader
+    train_dataloader = DataLoader(
+        tokenized_combined, 
+        shuffle=True, 
+        batch_size=args.batch_size
+    )
 
     ##### YOUR CODE ENDS HERE ######
 
