@@ -61,7 +61,7 @@ def custom_transform(example):
     
     for word in words:
         # Apply transformations with probability
-        if random.random() < 0.15:  # 15% chance to transform word
+        if random.random() < 0.4:  # 40% chance to transform word
             choice = random.choice(['synonym', 'typo'])
             
             if choice == 'synonym':
@@ -77,11 +77,13 @@ def custom_transform(example):
                         word = random.choice(synonyms)
             
             elif choice == 'typo' and len(word) > 2:
-                # Random typo by replacing a character
-                word_list = list(word.lower())
-                idx = random.randint(0, len(word_list) - 1)
-                if word_list[idx] in keyboard_neighbors:
-                    word_list[idx] = random.choice(keyboard_neighbors[word_list[idx]])
+                # Apply 1-2 typos to the word
+                num_typos = min(random.randint(1, 2), len(word_list))
+                for _ in range(num_typos):
+                    idx = random.randint(0, len(word_list) - 1)
+                    if word_list[idx] in keyboard_neighbors:
+                        word_list[idx] = random.choice(keyboard_neighbors[word_list[idx]])
+                
                 word = ''.join(word_list)
         
         transformed_words.append(word)
