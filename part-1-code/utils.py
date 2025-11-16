@@ -77,6 +77,9 @@ def custom_transform(example):
                         word = random.choice(synonyms)
             
             elif choice == 'typo' and len(word) > 2:
+                # Random typo by replacing a character
+                word_list = list(word.lower())
+                
                 # Apply 1-2 typos to the word
                 num_typos = min(random.randint(1, 2), len(word_list))
                 for _ in range(num_typos):
