@@ -207,7 +207,7 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
     avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
     return avg_loss
         
-def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_path, model_record_path):
+def eval_epoch(args, model, dev_loader, tokenizer, epoch):
     '''
     You must implement the evaluation loop to be using during training. We recommend keeping track
     of the model loss on the SQL queries, the metrics compute_metrics returns (save_queries_and_records should be helpful)
@@ -285,31 +285,24 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
         for sql in sql_queries:
             f.write(sql + '\n')
     
-    # Compute records and metrics
+    # Compute records and save
     gt_sql_path = 'data/dev.sql'
-    records, error_msgs = compute_records(sql_queries)
     
-    with open(model_record_path, 'wb') as f:
-        import pickle
-        pickle.dump((records, error_msgs), f)
+    # Use save_queries_and_records from utils
+    save_queries_and_records(sql_queries, model_sql_path, model_record_path)
     
-    # Load ground truth
+    # Load ground truth records
     gt_record_path = 'records/ground_truth_dev.pkl'
     if not os.path.exists(gt_record_path):
         # Create ground truth records if not exist
         with open(gt_sql_path, 'r') as f:
             gt_queries = [line.strip() for line in f.readlines()]
-        gt_records, _ = compute_records(gt_queries)
-        with open(gt_record_path, 'wb') as f:
-            import pickle
-            pickle.dump((gt_records, _), f)
+        save_queries_and_records(gt_queries, gt_sql_path, gt_record_path)
     
-    sql_em, record_em, record_f1, _ = compute_metrics(
+    # Compute metrics
+    sql_em, record_em, record_f1, error_rate = compute_metrics(
         gt_sql_path, model_sql_path, gt_record_path, model_record_path
     )
-    
-    # Calculate error rate
-    error_rate = sum(1 for msg in error_msgs if msg) / len(error_msgs)
     
     return {
         'loss': avg_loss,
@@ -402,13 +395,8 @@ def main():
     
     # Final dev evaluation
     print("\nFinal dev set evaluation...")
-    eval_results = eval_epoch(
-        args, model, dev_loader,
-        gt_sql_pth='data/dev.sql',
-        model_sql_path=f'results/t5_{model_type}_{args.experiment_name}_dev_epoch999.sql',
-        gt_record_path='records/ground_truth_dev.pkl',
-        model_record_path=f'records/t5_{model_type}_{args.experiment_name}_dev_epoch999.pkl'
-    )
+    model_type = 'ft' if args.finetune else 'scratch'
+    eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch=999)
     print(f"Final Dev F1: {eval_results['record_f1']:.4f}")
     
     # Test inference
