@@ -107,8 +107,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
             
             print(f"Dev Loss: {eval_loss:.4f}")
             print(f"Record F1: {record_f1:.4f}, Record EM: {record_em:.4f}, SQL EM: {sql_em:.4f}")
-            num_total = len(dev_loader.dataset)
-            print(f"Syntax Errors: {num_syntax_errors}/{num_total} ({error_rate*100:.2f}%)")
+            print(f"Syntax Errors: {num_syntax_errors} ({error_rate*100:.2f}%)")
             
             # Print some examples
             print("\n" + "-"*80)
