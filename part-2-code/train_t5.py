@@ -52,7 +52,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
-def train(args, model, train_loader, dev_loader, optimizer, scheduler):
+def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer):
     best_f1 = -1
     best_epoch = 0
     epochs_since_improvement = 0
@@ -91,10 +91,14 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler):
         print(f"Train Loss: {tr_loss:.4f}")
 
         # Evaluation with metrics
-        eval_results = eval_epoch_with_metrics(
-            args, model, dev_loader, tokenizer, epoch
+        eval_results = eval_epoch(
+            args, model, dev_loader, 
+            gt_sql_pth='data/dev.sql',
+            model_sql_path=f'results/t5_{model_type}_{args.experiment_name}_dev_epoch{epoch}.sql',
+            gt_record_path='records/ground_truth_dev.pkl',
+            model_record_path=f'records/t5_{model_type}_{args.experiment_name}_dev_epoch{epoch}.pkl'
         )
-        
+                
         eval_loss = eval_results['loss']
         record_f1 = eval_results['record_f1']
         record_em = eval_results['record_em']
@@ -398,7 +402,13 @@ def main():
     
     # Final dev evaluation
     print("\nFinal dev set evaluation...")
-    eval_results = eval_epoch_with_metrics(args, model, dev_loader, tokenizer, epoch=999)
+    eval_results = eval_epoch(
+        args, model, dev_loader,
+        gt_sql_pth='data/dev.sql',
+        model_sql_path=f'results/t5_{model_type}_{args.experiment_name}_dev_epoch999.sql',
+        gt_record_path='records/ground_truth_dev.pkl',
+        model_record_path=f'records/t5_{model_type}_{args.experiment_name}_dev_epoch999.pkl'
+    )
     print(f"Final Dev F1: {eval_results['record_f1']:.4f}")
     
     # Test inference
@@ -408,6 +418,6 @@ def main():
     print("\n" + "="*80)
     print("✓ Training complete!")
     print("="*80 + "\n")
-    
+
 if __name__ == "__main__":
     main()
