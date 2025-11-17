@@ -95,7 +95,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
         
         if do_detailed_eval:
             print("Running DETAILED evaluation (with generation)...")
-            eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch, detailed=True)
+            eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch)  # REMOVED detailed=True
             
             eval_loss = eval_results['loss']
             record_f1 = eval_results['record_f1']
