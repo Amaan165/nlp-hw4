@@ -1,0 +1,76 @@
+================================================================================
+TABLE 1: Data Statistics BEFORE Pre-processing
+================================================================================
+
+Using T5 Tokenizer: google-t5/t5-small
+
+
+TRAIN SET:
+  Number of examples: 4225
+  Mean sentence length: 17.10 tokens
+  Mean SQL query length: 216.37 tokens
+  Vocabulary size (natural language): 791
+  Vocabulary size (SQL): 555
+
+DEV SET:
+  Number of examples: 466
+  Mean sentence length: 17.07 tokens
+  Mean SQL query length: 210.05 tokens
+  Vocabulary size (natural language): 465
+  Vocabulary size (SQL): 395
+
+================================================================================
+TABLE 2: Data Statistics AFTER Pre-processing
+================================================================================
+
+Model name: google-t5/t5-small
+Preprocessing: Lowercasing, phrase normalization, whitespace normalization
+
+
+TRAIN SET:
+  Number of examples: 4436
+  Mean sentence length: 16.26 tokens
+  Mean SQL query length: 216.77 tokens
+  Vocabulary size (natural language): 889
+  Vocabulary size (SQL): 555
+
+DEV SET:
+  Number of examples: 466
+  Mean sentence length: 16.20 tokens
+  Mean SQL query length: 210.05 tokens
+  Vocabulary size (natural language): 464
+  Vocabulary size (SQL): 395
+
+================================================================================
+IMPACT OF PREPROCESSING
+================================================================================
+
+TRAIN SET:
+  Mean NL length change: 17.10 -> 16.26 (-0.84)
+  NL vocab size change: 791 -> 889 (98)
+
+DEV SET:
+  Mean NL length change: 17.07 -> 16.20 (-0.87)
+  NL vocab size change: 465 -> 464 (-1)
+
+================================================================================
+SAMPLE DATA EXAMPLES (Original)
+================================================================================
+
+Example 1:
+  Natural Language: list all the flights that arrive at general mitchell international from various cities
+  SQL Query: SELECT DISTINCT flight_1.flight_id FROM flight flight_1 , airport airport_1 , airport_service airpor...
+  NL tokens: 15
+  SQL tokens: 112
+
+Example 2:
+  Natural Language: give me the flights leaving denver august ninth coming back to boston
+  SQL Query: SELECT DISTINCT flight_1.flight_id FROM flight flight_1 , airport_service airport_service_1 , city c...
+  NL tokens: 14
+  SQL tokens: 234
+
+Example 3:
+  Natural Language: what flights from tacoma to orlando on saturday
+  SQL Query: SELECT DISTINCT flight_1.flight_id FROM flight flight_1 , airport_service airport_service_1 , city c...
+  NL tokens: 18
+  SQL tokens: 235
