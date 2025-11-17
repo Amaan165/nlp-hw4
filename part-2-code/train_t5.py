@@ -368,17 +368,18 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
         save_queries_and_records(gt_queries_for_records, gt_sql_path, gt_record_path)
     
     # Compute metrics
-    sql_em, record_em, record_f1, error_rate = compute_metrics(
+    sql_em, record_em, record_f1, error_rate_from_metrics = compute_metrics(
         gt_sql_path, model_sql_path, gt_record_path, model_record_path
     )
-    
+
     # Load error messages to count syntax errors
     import pickle
     with open(model_record_path, 'rb') as f:
         records, error_msgs = pickle.load(f)
-    
+
     num_syntax_errors = sum(1 for msg in error_msgs if msg)
-    
+    error_rate = num_syntax_errors / len(error_msgs) if error_msgs else 0
+
     # Prepare examples for display
     examples = []
     for i in range(min(10, len(sql_queries))):  # Get 10 examples
@@ -389,13 +390,13 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
             'match': sql_queries[i].strip() == gt_queries[i].strip(),
             'error': error_msgs[i] if error_msgs[i] else None
         })
-    
+
     return {
         'loss': avg_loss,
         'record_f1': record_f1,
         'record_em': record_em,
         'sql_em': sql_em,
-        'error_rate': error_rate,
+        'error_rate': error_rate,  # Now this is guaranteed to be a float
         'num_syntax_errors': num_syntax_errors,
         'sql_queries': sql_queries,
         'examples': examples,
