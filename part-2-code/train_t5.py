@@ -33,7 +33,7 @@ def get_args():
     parser.add_argument('--weight_decay', type=float, default=0.01, help="Weight decay")
     parser.add_argument('--scheduler_type', type=str, default="linear", choices=["none", "cosine", "linear"])
     parser.add_argument('--num_warmup_epochs', type=int, default=1, help="Warmup epochs")
-    parser.add_argument('--max_n_epochs', type=int, default=15, help="Max training epochs")
+    parser.add_argument('--max_n_epochs', type=int, default=20, help="Max training epochs")
     parser.add_argument('--patience_epochs', type=int, default=5, help="Early stopping patience")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1, help="Gradient accumulation")
     
@@ -49,6 +49,7 @@ def get_args():
     # Experiment tracking
     parser.add_argument('--use_wandb', action='store_true', help="Use Weights & Biases")
     parser.add_argument('--experiment_name', type=str, default='t5_exp', help="Experiment name")
+    parser.add_argument('--run_error_analysis', action='store_true', help="Run error analysis on dev set")
     
     args = parser.parse_args()
     return args
@@ -402,7 +403,7 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
         'examples': examples,
     }
         
-def test_inference(args, model, test_loader, model_sql_path, model_record_path):
+def test_inference(args, model, test_loader, tokenizer, model_sql_path, model_record_path):
     '''
     You must implement inference to compute your model's generated SQL queries and its associated 
     database records. Implementation should be very similar to eval_epoch.
@@ -441,8 +442,6 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
     
     # Save
     model_type = 'ft' if args.finetune else 'scratch'
-    test_sql_path = f'results/t5_{model_type}_{args.experiment_name}_test.sql'
-    test_record_path = f'records/t5_{model_type}_{args.experiment_name}_test.pkl'
     
     save_queries_and_records(sql_queries, test_sql_path, test_record_path)
     
@@ -486,10 +485,23 @@ def main():
     print("\nFinal dev set evaluation...")
     eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch=999)
     print(f"Final Dev F1: {eval_results['record_f1']:.4f}")
+
+    # Run error analysis if requested
+    if args.run_error_analysis:
+        print("\nRunning error analysis...")
+        model_type = 'ft' if args.finetune else 'scratch'
+        pred_sql_path = f'results/t5_{model_type}_{args.experiment_name}_dev_epoch999.sql'
+        analysis_output = f'results/error_analysis_{args.experiment_name}.txt'
+        
+        os.system(f'python error_analysis.py --pred_sql {pred_sql_path} --output {analysis_output}')
+        print(f"✓ Error analysis saved to {analysis_output}")
         
     # Test inference
     print("\nGenerating test set predictions...")
-    test_queries = test_inference(args, model, test_loader, tokenizer)
+    model_type = 'ft' if args.finetune else 'scratch'
+    test_sql_path = f'results/t5_{model_type}_{args.experiment_name}_test.sql'
+    test_record_path = f'records/t5_{model_type}_{args.experiment_name}_test.pkl'
+    test_queries = test_inference(args, model, test_loader, tokenizer, test_sql_path, test_record_path)
     
     print("\n" + "="*80)
     print("✓ Training complete!")
