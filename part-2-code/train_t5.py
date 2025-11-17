@@ -26,7 +26,8 @@ def get_args():
     # Model hyperparameters
     parser.add_argument('--finetune', action='store_true', help="Fine-tune T5 (vs train from scratch)")
     parser.add_argument('--use_schema', action='store_true', default=True, help="Use schema context in inputs")
-    
+    parser.add_argument('--no_schema', dest='use_schema', action='store_false', help="Don't use schema context")
+
     # Training hyperparameters
     parser.add_argument('--learning_rate', type=float, default=1e-4, help="Learning rate")
     parser.add_argument('--weight_decay', type=float, default=0.01, help="Weight decay")
@@ -106,7 +107,8 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
             
             print(f"Dev Loss: {eval_loss:.4f}")
             print(f"Record F1: {record_f1:.4f}, Record EM: {record_em:.4f}, SQL EM: {sql_em:.4f}")
-            print(f"Syntax Errors: {num_syntax_errors}/{len(dev_loader.dataset)} ({error_rate*100:.2f}%)")
+            num_total = len(dev_loader.dataset)
+            print(f"Syntax Errors: {num_syntax_errors}/{num_total} ({error_rate*100:.2f}%)")
             
             # Print some examples
             print("\n" + "-"*80)
