@@ -440,13 +440,11 @@ def test_inference(args, model, test_loader, tokenizer, model_sql_path, model_re
                 sql = tokenizer.decode(gen_ids, skip_special_tokens=True)
                 sql_queries.append(sql)
     
-    # Save
-    model_type = 'ft' if args.finetune else 'scratch'
-    
-    save_queries_and_records(sql_queries, test_sql_path, test_record_path)
-    
-    print(f"✓ Saved {len(sql_queries)} queries to {test_sql_path}")
-    print(f"✓ Saved records to {test_record_path}")
+    # Save    
+    save_queries_and_records(sql_queries, model_sql_path, model_record_path)
+
+    print(f"✓ Saved {len(sql_queries)} queries to {model_sql_path}")
+    print(f"✓ Saved records to {model_record_path}")
     
     return sql_queries
 
