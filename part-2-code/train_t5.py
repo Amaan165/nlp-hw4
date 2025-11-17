@@ -90,47 +90,80 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
         tr_loss = train_epoch(args, model, train_loader, optimizer, scheduler)
         print(f"Train Loss: {tr_loss:.4f}")
 
-        # Evaluation with metrics - FIXED CALL
-        eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch)
+        # Decide whether to do detailed or quick eval
+        do_detailed_eval = (epoch % 5 == 0) or (epoch == args.max_n_epochs - 1)
         
-        eval_loss = eval_results['loss']
-        record_f1 = eval_results['record_f1']
-        record_em = eval_results['record_em']
-        sql_em = eval_results['sql_em']
-        error_rate = eval_results['error_rate']
+        if do_detailed_eval:
+            print("Running DETAILED evaluation (with generation)...")
+            eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch, detailed=True)
+            
+            eval_loss = eval_results['loss']
+            record_f1 = eval_results['record_f1']
+            record_em = eval_results['record_em']
+            sql_em = eval_results['sql_em']
+            error_rate = eval_results['error_rate']
+            num_syntax_errors = eval_results['num_syntax_errors']
+            
+            print(f"Dev Loss: {eval_loss:.4f}")
+            print(f"Record F1: {record_f1:.4f}, Record EM: {record_em:.4f}, SQL EM: {sql_em:.4f}")
+            print(f"Syntax Errors: {num_syntax_errors}/{len(dev_loader.dataset)} ({error_rate*100:.2f}%)")
+            
+            # Print some examples
+            print("\n" + "-"*80)
+            print("SAMPLE PREDICTIONS:")
+            print("-"*80)
+            for i, example in enumerate(eval_results['examples'][:3]):
+                print(f"\nExample {i+1}:")
+                print(f"  NL: {example['nl']}")
+                print(f"  Predicted: {example['pred'][:100]}...")
+                print(f"  Gold: {example['gold'][:100]}...")
+                print(f"  Match: {'✓' if example['match'] else '✗'}")
+                if example['error']:
+                    print(f"  ERROR: {example['error']}")
+            print("-"*80 + "\n")
+            
+            # Log to wandb
+            if use_wandb:
+                wandb.log({
+                    'epoch': epoch + 1,
+                    'train/loss': tr_loss,
+                    'dev/loss': eval_loss,
+                    'dev/record_f1': record_f1,
+                    'dev/record_em': record_em,
+                    'dev/sql_em': sql_em,
+                    'dev/error_rate': error_rate,
+                    'dev/num_syntax_errors': num_syntax_errors,
+                })
+            
+            # Check for improvement
+            if record_f1 > best_f1:
+                best_f1 = record_f1
+                best_epoch = epoch + 1
+                epochs_since_improvement = 0
+                save_model(checkpoint_dir, model, best=True)
+                print(f"✓ New best model! F1: {best_f1:.4f}")
+            else:
+                epochs_since_improvement += 1
+                print(f"No improvement for {epochs_since_improvement} epoch(s)")
         
-        print(f"Dev Loss: {eval_loss:.4f}")
-        print(f"Record F1: {record_f1:.4f}, Record EM: {record_em:.4f}, SQL EM: {sql_em:.4f}")
-        print(f"Error Rate: {error_rate*100:.2f}%")
-        
-        # Log to wandb
-        if use_wandb:
-            wandb.log({
-                'epoch': epoch + 1,
-                'train/loss': tr_loss,
-                'dev/loss': eval_loss,
-                'dev/record_f1': record_f1,
-                'dev/record_em': record_em,
-                'dev/sql_em': sql_em,
-                'dev/error_rate': error_rate,
-            })
+        else:
+            # Quick eval - only compute loss
+            print("Running QUICK evaluation (loss only)...")
+            eval_loss = eval_epoch_quick(args, model, dev_loader)
+            print(f"Dev Loss: {eval_loss:.4f}")
+            
+            if use_wandb:
+                wandb.log({
+                    'epoch': epoch + 1,
+                    'train/loss': tr_loss,
+                    'dev/loss': eval_loss,
+                })
         
         # Save model
         save_model(checkpoint_dir, model, best=False)
-        
-        # Check for improvement
-        if record_f1 > best_f1:
-            best_f1 = record_f1
-            best_epoch = epoch + 1
-            epochs_since_improvement = 0
-            save_model(checkpoint_dir, model, best=True)
-            print(f"✓ New best model! F1: {best_f1:.4f}")
-        else:
-            epochs_since_improvement += 1
-            print(f"No improvement for {epochs_since_improvement} epoch(s)")
 
-        # Early stopping
-        if epochs_since_improvement >= args.patience_epochs:
+        # Early stopping (only check on detailed eval)
+        if do_detailed_eval and epochs_since_improvement >= args.patience_epochs:
             print(f"\nEarly stopping after {epoch + 1} epochs")
             break
     
@@ -198,6 +231,42 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
 
     avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
     return avg_loss
+
+def eval_epoch_quick(args, model, dev_loader):
+    """Quick evaluation - compute loss only, no generation."""
+    model.eval()
+    total_loss = 0
+    total_tokens = 0
+    criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX)
+    
+    with torch.no_grad():
+        for encoder_input, encoder_mask, decoder_input, decoder_targets, _ in tqdm(dev_loader, desc="Quick Eval"):
+            encoder_input = encoder_input.to(DEVICE)
+            encoder_mask = encoder_mask.to(DEVICE)
+            decoder_input = decoder_input.to(DEVICE)
+            decoder_targets = decoder_targets.to(DEVICE)
+            
+            # Compute loss
+            outputs = model(
+                input_ids=encoder_input,
+                attention_mask=encoder_mask,
+                decoder_input_ids=decoder_input,
+            )
+            logits = outputs.logits
+            
+            loss = criterion(
+                logits.reshape(-1, logits.size(-1)),
+                decoder_targets.reshape(-1)
+            )
+            
+            # Track loss
+            non_pad = decoder_targets != PAD_IDX
+            num_tokens = torch.sum(non_pad).item()
+            total_loss += loss.item() * num_tokens
+            total_tokens += num_tokens
+    
+    avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
+    return avg_loss
         
 def eval_epoch(args, model, dev_loader, tokenizer, epoch):
     '''
@@ -215,11 +284,12 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
     criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX)
     
     sql_queries = []
+    nl_queries = []
     
-    progress_bar = tqdm(dev_loader, desc="Evaluating")
+    progress_bar = tqdm(dev_loader, desc="Detailed Eval")
     
     with torch.no_grad():
-        for encoder_input, encoder_mask, decoder_input, decoder_targets, _ in progress_bar:
+        for batch_idx, (encoder_input, encoder_mask, decoder_input, decoder_targets, _) in enumerate(progress_bar):
             encoder_input = encoder_input.to(DEVICE)
             encoder_mask = encoder_mask.to(DEVICE)
             decoder_input = decoder_input.to(DEVICE)
@@ -267,34 +337,57 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
     
     avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
     
-    # Compute metrics
+    # Load ground truth
+    gt_sql_path = 'data/dev.sql'
+    with open(gt_sql_path, 'r') as f:
+        gt_queries = [line.strip() for line in f.readlines()]
+    
+    # Load NL queries for examples
+    nl_path = 'data/dev.nl'
+    with open(nl_path, 'r') as f:
+        nl_queries = [line.strip() for line in f.readlines()]
+    
+    # Save queries
     model_type = 'ft' if args.finetune else 'scratch'
     model_sql_path = f'results/t5_{model_type}_{args.experiment_name}_dev_epoch{epoch}.sql'
     model_record_path = f'records/t5_{model_type}_{args.experiment_name}_dev_epoch{epoch}.pkl'
     
-    # Save queries
     with open(model_sql_path, 'w') as f:
         for sql in sql_queries:
             f.write(sql + '\n')
     
     # Compute records and save
-    gt_sql_path = 'data/dev.sql'
-    
-    # Use save_queries_and_records from utils
     save_queries_and_records(sql_queries, model_sql_path, model_record_path)
     
     # Load ground truth records
     gt_record_path = 'records/ground_truth_dev.pkl'
     if not os.path.exists(gt_record_path):
-        # Create ground truth records if not exist
         with open(gt_sql_path, 'r') as f:
-            gt_queries = [line.strip() for line in f.readlines()]
-        save_queries_and_records(gt_queries, gt_sql_path, gt_record_path)
+            gt_queries_for_records = [line.strip() for line in f.readlines()]
+        save_queries_and_records(gt_queries_for_records, gt_sql_path, gt_record_path)
     
     # Compute metrics
     sql_em, record_em, record_f1, error_rate = compute_metrics(
         gt_sql_path, model_sql_path, gt_record_path, model_record_path
     )
+    
+    # Load error messages to count syntax errors
+    import pickle
+    with open(model_record_path, 'rb') as f:
+        records, error_msgs = pickle.load(f)
+    
+    num_syntax_errors = sum(1 for msg in error_msgs if msg)
+    
+    # Prepare examples for display
+    examples = []
+    for i in range(min(10, len(sql_queries))):  # Get 10 examples
+        examples.append({
+            'nl': nl_queries[i],
+            'pred': sql_queries[i],
+            'gold': gt_queries[i],
+            'match': sql_queries[i].strip() == gt_queries[i].strip(),
+            'error': error_msgs[i] if error_msgs[i] else None
+        })
     
     return {
         'loss': avg_loss,
@@ -302,7 +395,9 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
         'record_em': record_em,
         'sql_em': sql_em,
         'error_rate': error_rate,
+        'num_syntax_errors': num_syntax_errors,
         'sql_queries': sql_queries,
+        'examples': examples,
     }
         
 def test_inference(args, model, test_loader, model_sql_path, model_record_path):
