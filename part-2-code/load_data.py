@@ -15,7 +15,7 @@ PAD_IDX = 0
 
 class T5Dataset(Dataset):
 
-    def __init__(self, data_folder, split):
+    def __init__(self, data_folder, split, use_schema=True, use_preprocessed=False):
         '''
         Skeleton for the class for performing data processing for the T5 model.
 
