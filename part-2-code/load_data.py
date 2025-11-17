@@ -216,7 +216,7 @@ def test_collate_fn(batch):
     
     return encoder_ids, encoder_mask, initial_decoder_inputs
 
-def get_dataloader(batch_size, split):
+def get_dataloader(batch_size, split, use_schema=True, use_preprocessed=False):
     data_folder = 'data'
     dataset = T5Dataset(data_folder, split, use_schema=use_schema, use_preprocessed=use_preprocessed)
     shuffle = (split == "train")
@@ -232,7 +232,7 @@ def get_dataloader(batch_size, split):
     
     return dataloader
 
-def load_t5_data(batch_size, test_batch_size):
+def load_t5_data(batch_size, test_batch_size, use_schema=True, use_preprocessed=False):
     print("\n" + "="*80)
     print("Loading T5 data...")
     print(f"Schema context: {use_schema}")
