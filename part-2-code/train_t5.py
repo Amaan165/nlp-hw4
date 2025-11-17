@@ -90,15 +90,9 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
         tr_loss = train_epoch(args, model, train_loader, optimizer, scheduler)
         print(f"Train Loss: {tr_loss:.4f}")
 
-        # Evaluation with metrics
-        eval_results = eval_epoch(
-            args, model, dev_loader, 
-            gt_sql_pth='data/dev.sql',
-            model_sql_path=f'results/t5_{model_type}_{args.experiment_name}_dev_epoch{epoch}.sql',
-            gt_record_path='records/ground_truth_dev.pkl',
-            model_record_path=f'records/t5_{model_type}_{args.experiment_name}_dev_epoch{epoch}.pkl'
-        )
-                
+        # Evaluation with metrics - FIXED CALL
+        eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch)
+        
         eval_loss = eval_results['loss']
         record_f1 = eval_results['record_f1']
         record_em = eval_results['record_em']
@@ -111,7 +105,6 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
         
         # Log to wandb
         if use_wandb:
-            import wandb
             wandb.log({
                 'epoch': epoch + 1,
                 'train/loss': tr_loss,
@@ -147,7 +140,6 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
     print(f"{'='*80}\n")
     
     if use_wandb:
-        import wandb
         wandb.finish()
 
 def train_epoch(args, model, train_loader, optimizer, scheduler):
@@ -395,10 +387,9 @@ def main():
     
     # Final dev evaluation
     print("\nFinal dev set evaluation...")
-    model_type = 'ft' if args.finetune else 'scratch'
     eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch=999)
     print(f"Final Dev F1: {eval_results['record_f1']:.4f}")
-    
+        
     # Test inference
     print("\nGenerating test set predictions...")
     test_queries = test_inference(args, model, test_loader, tokenizer)
