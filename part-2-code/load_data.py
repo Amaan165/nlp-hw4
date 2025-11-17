@@ -88,7 +88,8 @@ class T5Dataset(Dataset):
         return nl_queries, sql_queries
 
     def process_data(self, data_folder, split, tokenizer):
-        # TODO
+        # Not implemented - data processing handled in __getitem__
+        pass
     
     def __len__(self):
         return len(self.nl_queries)
