@@ -2,6 +2,7 @@ import os, random, re, string
 from collections import Counter
 from tqdm import tqdm
 import pickle
+import json
 
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
@@ -51,26 +52,36 @@ class T5Dataset(Dataset):
         print(f"Loaded {len(self.nl_queries)} examples for {split} split")
 
     def load_schema(self, schema_path):
-        """Load and format database schema."""
+        """Load and format database schema from JSON file."""
+        import json
+        
         with open(schema_path, 'r') as f:
-            schema_lines = f.readlines()
+            schema_data = json.load(f)
         
-        # Extract table and column information
-        schema_text = []
-        for line in schema_lines:
-            line = line.strip()
-            if line and not line.startswith('--'):
-                # Keep CREATE TABLE and column definitions
-                if 'CREATE TABLE' in line or '(' in line or ')' in line:
-                    schema_text.append(line)
+        # Extract tables and columns from 'ents' section
+        schema_parts = []
+        entities = schema_data.get('ents', {})
         
-        schema_str = ' '.join(schema_text)
-        # Limit schema length
+        for table_name, columns in sorted(entities.items()):
+            # Get column names
+            col_names = list(columns.keys())
+            
+            # Limit columns per table (keep first 8) to avoid token limit
+            if len(col_names) > 8:
+                col_names = col_names[:8]
+            
+            cols_str = ', '.join(col_names)
+            schema_parts.append(f"{table_name}({cols_str})")
+        
+        # Create compact schema representation
+        schema_str = "Schema: " + "; ".join(schema_parts)
+        
+        # Limit total length to 800 chars to fit in context
         if len(schema_str) > 800:
-            schema_str = schema_str[:800]
+            schema_str = schema_str[:797] + "..."
         
         return schema_str
-    
+        
     def load_data(self, data_path, split):
         """Load natural language and SQL queries."""
         nl_file = os.path.join(data_path, f'{split}.nl')
