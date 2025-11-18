@@ -8,7 +8,7 @@ import numpy as np
 import wandb
 
 from t5_utils import initialize_optimizer_and_scheduler, save_model, setup_wandb
-from t5_utils_scratch import initialize_model_scratch, apply_weight_init
+from t5_utils_scratch import initialize_model_scratch, apply_weight_init, setup_wandb_scratch
 from transformers import GenerationConfig, T5TokenizerFast
 from load_data import load_t5_data
 from utils import compute_metrics, save_queries_and_records
@@ -90,7 +90,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
     # Initialize wandb
     use_wandb = False
     if args.use_wandb:
-        use_wandb = setup_wandb(args)
+        use_wandb = setup_wandb_scratch(args) 
     
     for epoch in range(args.max_n_epochs):
         print(f"\n{'='*80}")
@@ -465,6 +465,32 @@ def load_model_from_checkpoint(args, best=True):
     model.load_state_dict(checkpoint['model_state_dict'])
     
     return model
+
+def setup_wandb_scratch(args):
+    """Initialize Weights & Biases for scratch training."""
+    try:
+        import wandb
+        wandb.init(
+            project="t5-text-to-sql-scratch",
+            name=args.experiment_name,
+            config={
+                "learning_rate": args.learning_rate,
+                "weight_decay": args.weight_decay,
+                "scheduler": args.scheduler_type,
+                "batch_size": args.batch_size,
+                "dropout_rate": args.dropout_rate,
+                "label_smoothing": args.label_smoothing,
+                "use_schema": args.use_schema,
+                "max_epochs": args.max_n_epochs,
+                "warmup_epochs": args.num_warmup_epochs,
+                "heavy_augmentation": args.heavy_augmentation,
+            }
+        )
+        print("✓ Weights & Biases initialized")
+        return True
+    except Exception as e:
+        print(f"⚠ wandb initialization failed: {e}")
+        return False
 
 def main():
     args = get_args()

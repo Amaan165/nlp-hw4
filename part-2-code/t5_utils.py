@@ -21,7 +21,7 @@ def setup_wandb(args):
                 "weight_decay": args.weight_decay,
                 "scheduler": args.scheduler_type,
                 "batch_size": args.batch_size,
-                "finetune": args.finetune,
+                "finetune": getattr(args, 'finetune', False),
                 "use_schema": args.use_schema,
                 "max_epochs": args.max_n_epochs,
                 "warmup_epochs": args.num_warmup_epochs,
