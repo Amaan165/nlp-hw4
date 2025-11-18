@@ -10,7 +10,7 @@ import wandb
 from t5_utils import initialize_optimizer_and_scheduler, save_model, setup_wandb
 from t5_utils_scratch import initialize_model_scratch, apply_weight_init
 from transformers import GenerationConfig, T5TokenizerFast
-from load_data import load_t5_data
+from load_data import load_t5_data_scratch
 from utils import compute_metrics, save_queries_and_records
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -56,6 +56,7 @@ def get_args():
     parser.add_argument('--use_wandb', action='store_true', help="Use Weights & Biases")
     parser.add_argument('--experiment_name', type=str, default='scratch_exp', help="Experiment name")
     parser.add_argument('--run_error_analysis', action='store_true', help="Run error analysis")
+    parser.add_argument('--eval_every_n_epochs', type=int, default=10, help="Detailed eval frequency")
     
     args = parser.parse_args()
     return args
@@ -102,12 +103,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
         print(f"Train Loss: {tr_loss:.4f}")
 
         # Decide evaluation frequency
-        # Early epochs: eval every 10 epochs
-        # Later epochs: eval every 5 epochs
-        if epoch < 20:
-            do_detailed_eval = (epoch % 10 == 0) or (epoch == args.max_n_epochs - 1)
-        else:
-            do_detailed_eval = (epoch % 5 == 0) or (epoch == args.max_n_epochs - 1)
+        do_detailed_eval = (epoch % args.eval_every_n_epochs == 0) or (epoch == args.max_n_epochs - 1)
         
         if do_detailed_eval:
             print("Running DETAILED evaluation (with generation)...")
@@ -511,7 +507,7 @@ def main():
     
     # Load tokenizer and data
     tokenizer = T5TokenizerFast.from_pretrained('google-t5/t5-small')
-    train_loader, dev_loader, test_loader = load_t5_data(
+    train_loader, dev_loader, test_loader = load_t5_data_scratch(
         args.batch_size, args.test_batch_size,
         use_schema=args.use_schema,
         use_preprocessed=args.use_preprocessed
