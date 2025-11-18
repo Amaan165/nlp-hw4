@@ -10,7 +10,7 @@ import wandb
 from t5_utils import initialize_optimizer_and_scheduler, save_model, setup_wandb
 from t5_utils_scratch import initialize_model_scratch, apply_weight_init
 from transformers import GenerationConfig, T5TokenizerFast
-from load_data import load_t5_data_scratch
+from load_data_scratch import load_t5_data_scratch
 from utils import compute_metrics, save_queries_and_records
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -474,12 +474,14 @@ def setup_wandb_scratch(args):
                 "weight_decay": args.weight_decay,
                 "scheduler": args.scheduler_type,
                 "batch_size": args.batch_size,
+                "gradient_accumulation_steps": args.gradient_accumulation_steps,
                 "dropout_rate": args.dropout_rate,
                 "label_smoothing": args.label_smoothing,
                 "use_schema": args.use_schema,
                 "max_epochs": args.max_n_epochs,
                 "warmup_epochs": args.num_warmup_epochs,
                 "heavy_augmentation": args.heavy_augmentation,
+                "eval_every_n_epochs": args.eval_every_n_epochs,
             }
         )
         print("✓ Weights & Biases initialized")
@@ -510,7 +512,8 @@ def main():
     train_loader, dev_loader, test_loader = load_t5_data_scratch(
         args.batch_size, args.test_batch_size,
         use_schema=args.use_schema,
-        use_preprocessed=args.use_preprocessed
+        use_preprocessed=args.use_preprocessed,
+        use_heavy_aug=args.heavy_augmentation
     )
     
     # Initialize model from scratch
