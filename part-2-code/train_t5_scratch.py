@@ -8,7 +8,7 @@ import numpy as np
 import wandb
 
 from t5_utils import initialize_optimizer_and_scheduler, save_model, setup_wandb
-from t5_utils_scratch import initialize_model_scratch, apply_weight_init, setup_wandb_scratch
+from t5_utils_scratch import initialize_model_scratch, apply_weight_init
 from transformers import GenerationConfig, T5TokenizerFast
 from load_data import load_t5_data
 from utils import compute_metrics, save_queries_and_records
