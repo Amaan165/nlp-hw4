@@ -45,6 +45,7 @@ def get_args():
     # Generation hyperparameters
     parser.add_argument('--max_gen_length', type=int, default=512, help="Max generation length")
     parser.add_argument('--num_beams', type=int, default=1, help="Beam search width (1=greedy)")
+    parser.add_argument('--length_penalty', type=float, default=1.0, help="Length penalty for beam search")
     
     # Experiment tracking
     parser.add_argument('--use_wandb', action='store_true', help="Use Weights & Biases")
@@ -323,6 +324,7 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
                     attention_mask=encoder_mask,
                     max_length=args.max_gen_length,
                     num_beams=args.num_beams,
+                    length_penalty=args.length_penalty,
                     early_stopping=True,
                 )
             else:
@@ -426,6 +428,7 @@ def test_inference(args, model, test_loader, tokenizer, model_sql_path, model_re
                     attention_mask=encoder_mask,
                     max_length=args.max_gen_length,
                     num_beams=args.num_beams,
+                    length_penalty=args.length_penalty,
                     early_stopping=True,
                 )
             else:
