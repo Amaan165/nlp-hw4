@@ -181,7 +181,7 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
     model.train()
     total_loss = 0
     total_tokens = 0
-    criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX)
+    criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX, label_smoothing=0.1)
 
     progress_bar = tqdm(train_loader, desc="Training")
     optimizer.zero_grad()
@@ -239,7 +239,7 @@ def eval_epoch_quick(args, model, dev_loader):
     model.eval()
     total_loss = 0
     total_tokens = 0
-    criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX)
+    criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX, label_smoothing=0.1)
     
     with torch.no_grad():
         for encoder_input, encoder_mask, decoder_input, decoder_targets, _ in tqdm(dev_loader, desc="Quick Eval"):
@@ -283,7 +283,7 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
     model.eval()
     total_loss = 0
     total_tokens = 0
-    criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX)
+    criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX, label_smoothing=0.1)
     
     sql_queries = []
     nl_queries = []
