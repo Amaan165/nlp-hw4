@@ -1,6 +1,7 @@
 """
 Modified data loader to support heavy augmentation for scratch training
 This extends the original load_data.py with support for multiple data directories
+and Question/Answer format with END tokens
 """
 
 import os
@@ -64,6 +65,30 @@ def get_dataloader_scratch(batch_size, split, use_schema=True, use_preprocessed=
             # Load data
             self.nl_queries, self.sql_queries = self.load_data(data_path, split)
             print(f"Loaded {len(self.nl_queries)} examples for {split} split")
+            print(f"Using Question/Answer format with END tokens")
+        
+        def __getitem__(self, idx):
+            """Override to use Question/Answer format with END token"""
+            nl_query = self.nl_queries[idx]
+            sql_query = self.sql_queries[idx]
+            
+            # Format input as "Question: <NL> Answer: "
+            if self.use_schema:
+                input_text = f"{self.schema}\nQuestion: {nl_query} Answer: "
+            else:
+                input_text = f"Question: {nl_query} Answer: "
+            
+            # Format target as "<sql> END" for training
+            # For test split, don't add END since we won't have targets
+            if self.split != "test":
+                target_text = f"{sql_query} END"
+            else:
+                target_text = sql_query
+            
+            return input_text, target_text
+        
+        def __len__(self):
+            return len(self.nl_queries)
     
     dataset = ModifiedT5Dataset(
         data_folder, 
@@ -101,6 +126,7 @@ def load_t5_data_scratch(batch_size, test_batch_size, use_schema=True, use_prepr
     print(f"Schema context: {use_schema}")
     print(f"Preprocessed data: {use_preprocessed}")
     print(f"Heavy augmentation: {use_heavy_aug}")
+    print(f"Format: Question/Answer with END tokens")
     print("="*80)
     
     train_loader = get_dataloader_scratch(batch_size, "train", use_schema, use_preprocessed, use_heavy_aug)

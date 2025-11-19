@@ -18,6 +18,57 @@ PAD_IDX = 0
 
 print(f"Using device: {DEVICE}")
 
+def get_end_token_id(tokenizer):
+    """Get the token ID for 'END'"""
+    # Tokenize "END" to get its ID
+    end_tokens = tokenizer.encode("END", add_special_tokens=False)
+    if len(end_tokens) > 0:
+        return end_tokens[0]
+    return None
+
+def mask_end_token_and_after(decoder_targets, end_token_id, pad_idx=PAD_IDX):
+    """
+    Mask END token and everything after it in decoder targets.
+    Sets END token and subsequent tokens to PAD_IDX so they're ignored in loss.
+    
+    Args:
+        decoder_targets: Tensor of shape (batch_size, seq_len)
+        end_token_id: Token ID for END
+        pad_idx: Padding index to use for masking
+        
+    Returns:
+        Masked decoder targets
+    """
+    if end_token_id is None:
+        return decoder_targets
+    
+    masked_targets = decoder_targets.clone()
+    batch_size, seq_len = decoder_targets.shape
+    
+    for i in range(batch_size):
+        # Find first occurrence of END token
+        end_positions = (decoder_targets[i] == end_token_id).nonzero(as_tuple=True)[0]
+        
+        if len(end_positions) > 0:
+            # Get position of first END token
+            end_pos = end_positions[0].item()
+            # Mask END and everything after it
+            masked_targets[i, end_pos:] = pad_idx
+    
+    return masked_targets
+
+def strip_end_token(sql_query):
+    """
+    Remove END token from generated SQL query.
+    Handles both ' END' and 'END' at the end of the string.
+    """
+    sql_query = sql_query.strip()
+    if sql_query.endswith(' END'):
+        return sql_query[:-4].strip()
+    elif sql_query.endswith('END'):
+        return sql_query[:-3].strip()
+    return sql_query
+
 def get_args():
     '''
     Arguments for scratch training with optimizations
@@ -74,6 +125,14 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
     os.makedirs('results', exist_ok=True)
     os.makedirs('records', exist_ok=True)
     
+    # Get END token ID for masking in loss calculation
+    end_token_id = get_end_token_id(tokenizer)
+    if end_token_id is not None:
+        print(f"END token ID: {end_token_id}")
+        print("END token and everything after will be excluded from loss calculation")
+    else:
+        print("⚠ WARNING: Could not find END token ID")
+    
     print("\n" + "="*80)
     print(f"SCRATCH TRAINING: {args.experiment_name}")
     print("="*80)
@@ -86,6 +145,8 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
     print(f"Dropout: {args.dropout_rate}, Label smoothing: {args.label_smoothing}")
     print(f"Max grad norm: {args.max_grad_norm}")
     print(f"Heavy augmentation: {args.heavy_augmentation}")
+    print(f"Format: Question/Answer with END tokens")
+    print(f"Loss: Excludes END token and everything after")
     print("="*80 + "\n")
     
     # Initialize wandb
@@ -99,7 +160,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
         print(f"{'='*80}")
         
         # Training
-        tr_loss = train_epoch(args, model, train_loader, optimizer, scheduler)
+        tr_loss = train_epoch(args, model, train_loader, optimizer, scheduler, end_token_id)
         print(f"Train Loss: {tr_loss:.4f}")
 
         # Decide evaluation frequency
@@ -107,7 +168,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
         
         if do_detailed_eval:
             print("Running DETAILED evaluation (with generation)...")
-            eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch)
+            eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch, end_token_id)
             
             eval_loss = eval_results['loss']
             record_f1 = eval_results['record_f1']
@@ -161,7 +222,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
         else:
             # Quick eval - only compute loss
             print("Running QUICK evaluation (loss only)...")
-            eval_loss = eval_epoch_quick(args, model, dev_loader)
+            eval_loss = eval_epoch_quick(args, model, dev_loader, end_token_id)
             print(f"Dev Loss: {eval_loss:.4f}")
             
             if use_wandb:
@@ -187,7 +248,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler, tokenizer
     if use_wandb:
         wandb.finish()
 
-def train_epoch(args, model, train_loader, optimizer, scheduler):
+def train_epoch(args, model, train_loader, optimizer, scheduler, end_token_id):
     model.train()
     total_loss = 0
     total_tokens = 0
@@ -206,6 +267,9 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
         decoder_input = decoder_input.to(DEVICE)
         decoder_targets = decoder_targets.to(DEVICE)
 
+        # Mask END token and everything after it
+        masked_targets = mask_end_token_and_after(decoder_targets, end_token_id)
+
         # Forward pass
         outputs = model(
             input_ids=encoder_input,
@@ -214,10 +278,10 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
         )
         logits = outputs.logits
 
-        # Compute loss
+        # Compute loss (END token and after are now masked as PAD_IDX)
         loss = criterion(
             logits.reshape(-1, logits.size(-1)),
-            decoder_targets.reshape(-1)
+            masked_targets.reshape(-1)
         )
         
         # Scale loss for gradient accumulation
@@ -236,7 +300,7 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
 
         # Track metrics
         with torch.no_grad():
-            non_pad = decoder_targets != PAD_IDX
+            non_pad = masked_targets != PAD_IDX
             num_tokens = torch.sum(non_pad).item()
             total_loss += loss.item() * args.gradient_accumulation_steps * num_tokens
             total_tokens += num_tokens
@@ -247,7 +311,7 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
     avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
     return avg_loss
 
-def eval_epoch_quick(args, model, dev_loader):
+def eval_epoch_quick(args, model, dev_loader, end_token_id):
     """Quick evaluation - compute loss only."""
     model.eval()
     total_loss = 0
@@ -264,6 +328,9 @@ def eval_epoch_quick(args, model, dev_loader):
             decoder_input = decoder_input.to(DEVICE)
             decoder_targets = decoder_targets.to(DEVICE)
             
+            # Mask END token and everything after it
+            masked_targets = mask_end_token_and_after(decoder_targets, end_token_id)
+            
             outputs = model(
                 input_ids=encoder_input,
                 attention_mask=encoder_mask,
@@ -273,10 +340,10 @@ def eval_epoch_quick(args, model, dev_loader):
             
             loss = criterion(
                 logits.reshape(-1, logits.size(-1)),
-                decoder_targets.reshape(-1)
+                masked_targets.reshape(-1)
             )
             
-            non_pad = decoder_targets != PAD_IDX
+            non_pad = masked_targets != PAD_IDX
             num_tokens = torch.sum(non_pad).item()
             total_loss += loss.item() * num_tokens
             total_tokens += num_tokens
@@ -284,7 +351,7 @@ def eval_epoch_quick(args, model, dev_loader):
     avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
     return avg_loss
         
-def eval_epoch(args, model, dev_loader, tokenizer, epoch):
+def eval_epoch(args, model, dev_loader, tokenizer, epoch, end_token_id):
     model.eval()
     total_loss = 0
     total_tokens = 0
@@ -304,6 +371,9 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
             decoder_input = decoder_input.to(DEVICE)
             decoder_targets = decoder_targets.to(DEVICE)
             
+            # Mask END token and everything after it
+            masked_targets = mask_end_token_and_after(decoder_targets, end_token_id)
+            
             # Compute loss
             outputs = model(
                 input_ids=encoder_input,
@@ -314,10 +384,10 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
             
             loss = criterion(
                 logits.reshape(-1, logits.size(-1)),
-                decoder_targets.reshape(-1)
+                masked_targets.reshape(-1)
             )
             
-            non_pad = decoder_targets != PAD_IDX
+            non_pad = masked_targets != PAD_IDX
             num_tokens = torch.sum(non_pad).item()
             total_loss += loss.item() * num_tokens
             total_tokens += num_tokens
@@ -338,14 +408,16 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
                     max_length=args.max_gen_length,
                 )
             
-            # Decode SQL
+            # Decode SQL and strip END token
             for gen_ids in generated_ids:
                 sql = tokenizer.decode(gen_ids, skip_special_tokens=True)
+                # Remove END token from generated sequence
+                sql = strip_end_token(sql)
                 sql_queries.append(sql)
     
     avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
     
-    # Load ground truth
+    # Load ground truth (without END tokens)
     gt_sql_path = 'data/dev.sql'
     with open(gt_sql_path, 'r') as f:
         gt_queries = [line.strip() for line in f.readlines()]
@@ -355,7 +427,7 @@ def eval_epoch(args, model, dev_loader, tokenizer, epoch):
     with open(nl_path, 'r') as f:
         nl_queries = [line.strip() for line in f.readlines()]
     
-    # Save queries
+    # Save queries (without END tokens)
     model_sql_path = f'results/t5_scratch_{args.experiment_name}_dev_epoch{epoch}.sql'
     model_record_path = f'records/t5_scratch_{args.experiment_name}_dev_epoch{epoch}.pkl'
     
@@ -436,12 +508,14 @@ def test_inference(args, model, test_loader, tokenizer, model_sql_path, model_re
                     max_length=args.max_gen_length,
                 )
             
-            # Decode
+            # Decode and strip END token
             for gen_ids in generated_ids:
                 sql = tokenizer.decode(gen_ids, skip_special_tokens=True)
+                # Remove END token from generated sequence
+                sql = strip_end_token(sql)
                 sql_queries.append(sql)
     
-    # Save
+    # Save (without END tokens)
     save_queries_and_records(sql_queries, model_sql_path, model_record_path)
 
     print(f"✓ Saved {len(sql_queries)} queries to {model_sql_path}")
@@ -482,6 +556,7 @@ def setup_wandb_scratch(args):
                 "warmup_epochs": args.num_warmup_epochs,
                 "heavy_augmentation": args.heavy_augmentation,
                 "eval_every_n_epochs": args.eval_every_n_epochs,
+                "format": "Question/Answer with END",
             }
         )
         print("✓ Weights & Biases initialized")
@@ -533,9 +608,12 @@ def main():
     model = load_model_from_checkpoint(args, best=True)
     model.eval()
     
+    # Get END token ID
+    end_token_id = get_end_token_id(tokenizer)
+    
     # Final dev evaluation
     print("\nFinal dev set evaluation...")
-    eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch=999)
+    eval_results = eval_epoch(args, model, dev_loader, tokenizer, epoch=999, end_token_id=end_token_id)
     print(f"Final Dev F1: {eval_results['record_f1']:.4f}")
 
     # Run error analysis if requested
